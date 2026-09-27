@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dashboard GDL2 - Carga Automática</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --navy:#0B1F3A; --navy2:#132B4D; --blue:#2E5AAC; --blue-mid:#4C7CD6; --blue-light:#8FB2E8;
+  --gray-bg:#EEF1F5; --gray-card:#FFFFFF; --gray-border:#DDE3EA; --text:#1B2733; --text-mute:#5B6B7C;
+  --red:#C0392B; --green:#1E7A46;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+body{margin:0;font-family:'Inter',system-ui,sans-serif;background:var(--gray-bg);color:var(--text);}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 18px 60px;}
+header{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border-radius:14px;padding:22px 26px;margin-bottom:18px;}
+header h1{margin:0 0 6px;font-size:1.4rem;font-weight:800;}
+header p{margin:0;color:#C7D3E6;font-size:.88rem;}
+
+.upload-panel{background:#fff;border:2px dashed var(--gray-border);border-radius:14px;padding:26px;text-align:center;margin-bottom:16px;transition:.15s;}
+.upload-panel.drag{border-color:var(--blue);background:#F3F7FE;}
+.upload-panel svg{width:36px;height:36px;color:var(--blue);margin-bottom:8px;}
+.upload-panel p{margin:4px 0;color:var(--text-mute);font-size:.9rem;}
+.btn{background:var(--blue);color:#fff;border:none;padding:9px 20px;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;margin-top:8px;}
+.btn:hover{background:var(--navy);}
+.file-input{display:none;}
+.config-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;background:#fff;border:1px solid var(--gray-border);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:.82rem;}
+.config-bar label{font-weight:700;color:var(--navy);margin-right:6px;}
+.config-bar input{border:1px solid var(--gray-border);border-radius:6px;padding:5px 8px;font-size:.82rem;width:200px;}
+.config-bar input.small{width:70px;}
+.status{font-size:.85rem;padding:10px 14px;border-radius:10px;margin-bottom:16px;}
+.status.ok{background:#EAF6EE;color:var(--green);border:1px solid #BEE3C9;}
+.status.err{background:#FBEAE8;color:var(--red);border:1px solid #F1C3BD;}
+.status.info{background:#EEF3FB;color:var(--blue);border:1px solid #CBDBF3;}
+
+h2.section{font-size:1.05rem;color:var(--navy);margin:24px 0 12px;font-weight:800;border-left:4px solid var(--blue);padding-left:10px;}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
+.kpi{background:var(--gray-card);border:1px solid var(--gray-border);border-radius:12px;padding:14px 16px;}
+.kpi .lbl{font-size:.72rem;color:var(--text-mute);font-weight:600;text-transform:uppercase;letter-spacing:.3px;}
+.kpi .val{font-size:1.3rem;font-weight:800;color:var(--navy);margin-top:4px;}
+.kpi .sub{font-size:.75rem;color:var(--text-mute);margin-top:2px;}
+.pos{color:var(--green)!important;} .neg{color:var(--red)!important;}
+.panel{background:var(--gray-card);border:1px solid var(--gray-border);border-radius:14px;padding:18px;margin-top:16px;}
+.panel h3{margin:0 0 12px;font-size:.9rem;color:var(--navy);font-weight:700;}
+.zones{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:6px;}
+.zone-card{background:var(--gray-card);border:1px solid var(--gray-border);border-radius:14px;overflow:hidden;}
+.zone-head{background:var(--navy);color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.zone-head .ruta{font-weight:800;font-size:1rem;}
+.zone-head .emp{font-size:.68rem;color:#C7D3E6;max-width:150px;text-align:right;}
+.zone-body{padding:14px 16px;}
+.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--gray-border);font-size:.85rem;}
+.row:last-child{border-bottom:none;}
+.row .k{color:var(--text-mute);}
+.row .v{font-weight:700;color:var(--text);}
+.bar-track{height:8px;background:var(--gray-bg);border-radius:6px;overflow:hidden;margin-top:8px;}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--blue-light));}
+.footnote{font-size:.75rem;color:var(--text-mute);margin-top:18px;line-height:1.5;background:#fff;border:1px solid var(--gray-border);border-radius:10px;padding:12px 16px;}
+#results{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Dashboard Comercial · GDL2 (Guadalajara II)</h1>
+    <p>Sube el archivo "Analisis de vta" (.xlsx / .xlsm) y el dashboard se genera automáticamente.</p>
+  </header>
+
+  <div class="config-bar">
+    <div><label>Rutas:</label><input id="cfgRutas" type="text" value="BVA116,BVA117,BVA118,BVA124"></div>
+    <div><label>Días hábiles del mes:</label><input id="cfgDias" class="small" type="number" value="22" min="1" max="31"></div>
+    <div><label>Día hábil actual:</label><input id="cfgDiaActual" class="small" type="number" value="22" min="1" max="31"></div>
+    <div><label>Ubicación (si Rutas está vacío):</label><input id="cfgUbic" type="text" value="GUADALAJARA II"></div>
+  </div>
+
+  <div class="upload-panel" id="dropzone">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z"/></svg>
+    <p><b>Arrastra tu archivo aquí</b> o haz clic para seleccionarlo</p>
+    <p style="font-size:.75rem">Formatos: .xlsx, .xlsm — el procesamiento ocurre en tu navegador, el archivo no se sube a ningún servidor.</p>
+    <button class="btn" type="button" onclick="document.getElementById('fileInput').click()">Seleccionar archivo</button>
+    <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xlsm,.xls">
+  </div>
+
+  <div id="statusBox"></div>
+  <div id="results"></div>
+</div>
+
+<script>
+const dz = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const statusBox = document.getElementById('statusBox');
+const resultsEl = document.getElementById('results');
+
+['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag');}));
+dz.addEventListener('drop', e=>{ if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+dz.addEventListener('click', e=>{ if(e.target.tagName!=='BUTTON') fileInput.click(); });
+fileInput.addEventListener('change', e=>{ if(e.target.files.length) handleFile(e.target.files[0]); });
+
+function setStatus(msg, type){
+  statusBox.innerHTML = `<div class="status ${type}">${msg}</div>`;
+}
+const norm = s => (s===null||s===undefined) ? '' : s.toString().trim();
+const flat = s => norm(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+
+// Reconocimiento flexible de columnas: por nombre exacto (sin acentos/mayúsculas) o por coincidencia parcial.
+const FIELD_DEFS = {
+  ruta:      {exact:['ruta'], required:true},
+  empleado:  {exact:['empleado responsable de la visita','empleado'], required:false},
+  ubicacion: {exact:['ubicacion','ubicación'], partial:['ubicac'], required:false},
+  venta:     {exact:['vtas mens.','vtas mens','venta mens.','venta mensual'], partial:['vtas','venta'], partialWith:'mens', required:true},
+  dev:       {exact:['dev. mens.','dev mens.','devolucion mens.','devolucion'], partial:['dev'], partialWith:'mens', required:false},
+  meta:      {exact:['metas','meta'], partial:['meta'], partialExclude:['alcance','cump'], required:true},
+  ccv:       {exact:['ccv'], required:true},
+  csv:       {exact:['csv'], required:true},
+};
+
+function matchField(headerFlat, def){
+  if(def.exact && def.exact.some(n=>headerFlat===flat(n))) return true;
+  if(def.partial && def.partial.some(p=>headerFlat.indexOf(p)>=0)){
+    if(def.partialWith && headerFlat.indexOf(def.partialWith)<0) return false;
+    if(def.partialExclude && def.partialExclude.some(x=>headerFlat.indexOf(x)>=0)) return false;
+    return true;
+  }
+  return false;
+}
+
+function handleFile(file){
+  setStatus('Leyendo "'+file.name+'"…','info');
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      processWorkbook(wb);
+    }catch(err){
+      console.error(err);
+      setStatus('No se pudo leer el archivo. Verifica que sea un .xlsx/.xlsm válido.','err');
+    }
+  };
+  reader.onerror = ()=> setStatus('Error al leer el archivo.','err');
+  reader.readAsArrayBuffer(file);
+}
+
+function findHeaderBlock(rows){
+  for(let i=0;i<rows.length;i++){
+    const row = rows[i] || [];
+    const colMap = {};
+    Object.keys(FIELD_DEFS).forEach(key=>{
+      const def = FIELD_DEFS[key];
+      const idx = row.findIndex(c=> c!==null && c!==undefined && norm(c)!=='' && matchField(flat(c), def));
+      if(idx>=0) colMap[key] = idx;
+    });
+    const requiredOk = Object.keys(FIELD_DEFS).every(key=> !FIELD_DEFS[key].required || (key in colMap));
+    if(requiredOk) return {headerRow:i, colMap};
+  }
+  return null;
+}
+
+function processWorkbook(wb){
+  const targetRoutes = document.getElementById('cfgRutas').value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+  const diasHabiles = parseFloat(document.getElementById('cfgDias').value) || 22;
+  const diaActual = parseFloat(document.getElementById('cfgDiaActual').value) || diasHabiles;
+
+  let sheetNames = wb.SheetNames.slice();
+  if(sheetNames.includes('Analisis')) sheetNames = ['Analisis', ...sheetNames.filter(s=>s!=='Analisis')];
+
+  let block = null, usedSheet = null;
+  for(const sn of sheetNames){
+    const ws = wb.Sheets[sn];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+    const b = findHeaderBlock(rows);
+    if(b){ block = {...b, rows}; usedSheet = sn; break; }
+  }
+
+  if(!block){
+    setStatus('No se encontró en el archivo la tabla con columnas "Ruta" y "Ubicación". Verifica que sea el reporte correcto.','err');
+    resultsEl.style.display='none';
+    return;
+  }
+
+  const cm = block.colMap;
+  const hasUbicCol = 'ubicacion' in cm;
+  const ubicFilter = document.getElementById('cfgUbic').value.trim();
+  const filterByRoutes = targetRoutes.length > 0;
+
+  if(!filterByRoutes && ubicFilter && !hasUbicCol){
+    setStatus('El archivo no trae columna de Ubicación, así que no puedo filtrar por "'+ubicFilter+'". Especifica rutas en el campo "Rutas" para filtrar.','err');
+    resultsEl.style.display='none';
+    return;
+  }
+
+  const all = [];
+  for(let r=block.headerRow+1; r<block.rows.length; r++){
+    const row = block.rows[r] || [];
+    const ruta = norm(row[cm['ruta']]);
+    if(!ruta) continue;
+    if(flat(ruta).startsWith('total')) break;
+    all.push({
+      ruta,
+      empleado: cm.empleado!==undefined ? norm(row[cm['empleado']]) : '',
+      ubicacion: hasUbicCol ? norm(row[cm['ubicacion']]) : '',
+      venta: Number(row[cm['venta']])||0,
+      dev: cm.dev!==undefined ? (Number(row[cm['dev']])||0) : 0,
+      meta: Number(row[cm['meta']])||0,
+      ccv: Number(row[cm['ccv']])||0,
+      csv: Number(row[cm['csv']])||0,
+    });
+  }
+
+  let found;
+  if(filterByRoutes){
+    found = all.filter(f=>targetRoutes.includes(f.ruta.toUpperCase()));
+  } else if(ubicFilter){
+    found = all.filter(f=>flat(f.ubicacion).indexOf(flat(ubicFilter))>=0);
+  } else {
+    found = all;
+  }
+
+  if(!found.length){
+    const criterio = filterByRoutes ? 'las rutas '+targetRoutes.join(', ') : (ubicFilter ? 'la ubicación "'+ubicFilter+'"' : 'ningún criterio');
+    setStatus('No se encontró ninguna fila para '+criterio+' en la hoja "'+usedSheet+'".','err');
+    resultsEl.style.display='none';
+    return;
+  }
+
+  let msg = 'Procesado correctamente desde la hoja "'+usedSheet+'". Zonas encontradas: '+found.map(f=>f.ruta).join(', ')+'.';
+  if(filterByRoutes){
+    const missingRoutes = targetRoutes.filter(t=>!found.some(f=>f.ruta.toUpperCase()===t));
+    if(missingRoutes.length) msg += ' No se encontraron: '+missingRoutes.join(', ')+'.';
+  }
+  if(!hasUbicCol) msg += ' (Este archivo no trae columna de Ubicación.)';
+  setStatus(msg, 'ok');
+
+  render(found, diasHabiles, diaActual);
+}
+
+function calc(z, dias, diaActual){
+  const gap = z.venta - z.meta;
+  const alcance = z.meta ? (z.venta/z.meta)*100 : 0;
+  const efect = (z.ccv+z.csv) ? (z.ccv/(z.ccv+z.csv))*100 : 0;
+  const ventaDiariaMinima = z.meta / dias;
+  const esperadoAlDia = ventaDiariaMinima * diaActual;
+  const ritmoPct = esperadoAlDia ? (z.venta/esperadoAlDia)*100 : 0;
+  return {...z, gap, alcance, efect, ventaDiariaMinima, ritmoPct};
+}
+const fmt = n => '$' + Math.round(n).toLocaleString('es-MX');
+const pct = n => n.toFixed(1) + '%';
+
+function kpiCards(d){
+  return `
+    <div class="kpi"><div class="lbl">Venta</div><div class="val">${fmt(d.venta)}</div></div>
+    <div class="kpi"><div class="lbl">Meta</div><div class="val">${fmt(d.meta)}</div></div>
+    <div class="kpi"><div class="lbl">GAP vs Meta</div><div class="val ${d.gap>=0?'pos':'neg'}">${fmt(d.gap)}</div></div>
+    <div class="kpi"><div class="lbl">Alcance a Meta</div><div class="val">${pct(d.alcance)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.min(d.alcance,100)}%"></div></div></div>
+    <div class="kpi"><div class="lbl">Efectividad</div><div class="val">${pct(d.efect)}</div></div>
+    <div class="kpi"><div class="lbl">Devolución mens.</div><div class="val neg">${fmt(d.dev)}</div></div>
+    <div class="kpi"><div class="lbl">Venta Diaria Mínima</div><div class="val">${fmt(d.ventaDiariaMinima)}</div><div class="sub">por día hábil</div></div>
+    <div class="kpi"><div class="lbl">Ritmo de Venta</div><div class="val ${d.ritmoPct>=100?'pos':(d.ritmoPct<80?'neg':'')}">${pct(d.ritmoPct)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.min(d.ritmoPct,100)}%"></div></div></div>
+  `;
+}
+
+function barChart(rows){
+  const W=1000,H=260,pad=50,bw=60,gap=40;
+  const maxV = Math.max(...rows.map(r=>r.meta)) * 1.1 || 1;
+  const scale = v => (v/maxV) * (H-pad-30);
+  let bars='';
+  rows.forEach((r,i)=>{
+    const x = pad + i*(bw*2+gap);
+    const hV=scale(r.venta), hM=scale(r.meta);
+    bars += `
+      <rect x="${x}" y="${H-30-hM}" width="${bw}" height="${hM}" fill="#DCE6F5" rx="4"/>
+      <rect x="${x}" y="${H-30-hV}" width="${bw}" height="${hV}" fill="url(#gradBlue)" rx="4"/>
+      <text x="${x+bw/2}" y="${H-30-hM-8}" text-anchor="middle" font-size="10" fill="#5B6B7C">Meta</text>
+      <text x="${x+bw/2}" y="${H-30-hV-8}" text-anchor="middle" font-size="10" font-weight="700" fill="#0B1F3A">${(r.venta/1e6).toFixed(2)}M</text>
+      <text x="${x+bw/2}" y="${H-10}" text-anchor="middle" font-size="12" font-weight="700" fill="#0B1F3A">${r.ruta}</text>
+    `;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;max-width:640px;display:block;margin:0 auto;">
+    <defs><linearGradient id="gradBlue" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4C7CD6"/><stop offset="100%" stop-color="#2E5AAC"/></linearGradient></defs>
+    ${bars}
+  </svg>`;
+}
+
+function alcanceChart(rows){
+  return rows.map(r=>{
+    const w = Math.min(r.alcance,100), over = r.alcance>=100;
+    return `<div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;font-size:.8rem;font-weight:700;color:#1B2733;margin-bottom:4px;"><span>${r.ruta}</span><span>${pct(r.alcance)}</span></div>
+      <div class="bar-track" style="height:14px;"><div class="bar-fill" style="width:${w}%;background:${over?'linear-gradient(90deg,#1E7A46,#4C9F6E)':'linear-gradient(90deg,#2E5AAC,#8FB2E8)'}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function zoneCards(rows){
+  return rows.map(r=>`
+    <div class="zone-card">
+      <div class="zone-head"><span class="ruta">${r.ruta}</span><span class="emp">${r.empleado}</span></div>
+      <div class="zone-body">
+        <div class="row"><span class="k">Venta</span><span class="v">${fmt(r.venta)}</span></div>
+        <div class="row"><span class="k">Meta</span><span class="v">${fmt(r.meta)}</span></div>
+        <div class="row"><span class="k">GAP vs Meta</span><span class="v ${r.gap>=0?'pos':'neg'}">${fmt(r.gap)}</span></div>
+        <div class="row"><span class="k">Alcance a Meta</span><span class="v">${pct(r.alcance)}</span></div>
+        <div class="row"><span class="k">Efectividad</span><span class="v">${pct(r.efect)}</span></div>
+        <div class="row"><span class="k">Devolución mens.</span><span class="v neg">${fmt(r.dev)}</span></div>
+        <div class="row"><span class="k">Venta Diaria Mínima</span><span class="v">${fmt(r.ventaDiariaMinima)}</span></div>
+        <div class="row"><span class="k">Ritmo de Venta</span><span class="v ${r.ritmoPct>=100?'pos':(r.ritmoPct<80?'neg':'')}">${pct(r.ritmoPct)}</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.min(r.alcance,100)}%"></div></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function render(foundRaw, dias, diaActual){
+  const rows = foundRaw.map(z=>calc(z,dias,diaActual));
+  const totRaw = rows.reduce((a,z)=>({venta:a.venta+z.venta, meta:a.meta+z.meta, dev:a.dev+z.dev, ccv:a.ccv+z.ccv, csv:a.csv+z.csv}),{venta:0,meta:0,dev:0,ccv:0,csv:0});
+  const total = calc(totRaw, dias, diaActual);
+
+  resultsEl.innerHTML = `
+    <h2 class="section">GDL2 · José Ángel Hernández Godín</h2>
+    <div class="kpi-grid">${kpiCards(total)}</div>
+    <div class="panel"><h3>Venta vs Meta por zona</h3>${barChart(rows)}</div>
+    <div class="panel"><h3>Alcance a la Meta (%) por zona</h3>${alcanceChart(rows)}</div>
+    <h2 class="section">Nivel 2 · Desglose por Zona</h2>
+    <div class="zones">${zoneCards(rows)}</div>
+    <div class="footnote"><b>Notas:</b> Efectividad = CCV/(CCV+CSV) por zona (ponderada en el total). Venta Diaria Mínima = Meta ÷ días hábiles del mes (${dias}). Ritmo de Venta = Venta acumulada ÷ (Venta Diaria Mínima × día hábil actual, hoy: ${diaActual}) — 100% significa que va exactamente al ritmo necesario para llegar a la meta. Puedes cambiar rutas, días hábiles, día actual o el filtro de ubicación arriba y volver a subir el archivo.</div>
+  `;
+  resultsEl.style.display='block';
+}
+</script>
+</body>
+</html>
